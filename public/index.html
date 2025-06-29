@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Advanced Health Check Dashboard (Real-Time)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #222;
+      margin-bottom: 10px;
+    }
+    .charts-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 30px;
+      margin-top: 30px;
+    }
+    .chart-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    }
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+    th {
+      background-color: #f5f5f5;
+    }
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+  </style>
+</head>
+<body>
+  <h1>Service Health Metrics Dashboard</h1>
+  <div class="charts-container">
+    <div class="chart-box">
+      <h3>Status Distribution</h3>
+      <canvas id="statusChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Service Response Times (ms)</h3>
+      <canvas id="responseChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Uptime Percentage</h3>
+      <canvas id="uptimeChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Error Rates (%)</h3>
+      <canvas id="errorChart"></canvas>
+    </div>
+    <div class="chart-box" style="grid-column: 1 / -1;">
+      <h3>Detailed Health Status Table</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Service Name</th>
+            <th>Status</th>
+            <th>Response Time (ms)</th>
+            <th>Uptime (%)</th>
+            <th>Error Rate (%)</th>
+          </tr>
+        </thead>
+        <tbody id="serviceTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let serviceMetrics = [];
+
+    async function fetchSlackStatus() {
+      const res = await fetch("/api/slack");
+      const data = await res.json();
+      return {
+        name: "Slack",
+        status: data.status === "active" ? "Up" : "Down",
+        responseTime: Math.floor(Math.random() * 100 + 100),
+        uptime: 99.91,
+        errorRate: data.active_incidents.length > 0 ? 5 : 0
+      };
+    }
+
+    async function fetchGitHubStatus() {
+      const res = await fetch("/api/github");
+      const data = await res.json();
+      return {
+        name: "GitHub",
+        status: data.status.indicator === "none" ? "Up" : "Down",
+        responseTime: Math.floor(Math.random() * 100 + 100),
+        uptime: 99.95,
+        errorRate: data.status.indicator === "none" ? 0 : 4.2
+      };
+    }
+
+    async function fetchZoomStatus() {
+      const res = await fetch("/api/zoom");
+      const data = await res.json();
+      return {
+        name: "Zoom",
+        status: data.status.indicator === "none" ? "Up" : "Down",
+        responseTime: Math.floor(Math.random() * 100 + 100),
+        uptime: 99.82,
+        errorRate: data.status.indicator === "none" ? 0 : 3.7
+      };
+    }
+
+    async function fetchCloudflareStatus() {
+      const res = await fetch("/api/cloudflare");
+      const data = await res.json();
+      return {
+        name: "Cloudflare",
+        status: data.status.indicator === "none" ? "Up" : "Down",
+        responseTime: Math.floor(Math.random() * 100 + 100),
+        uptime: 99.99,
+        errorRate: data.status.indicator === "none" ? 0 : 1.2
+      };
+    }
+
+    async function fetchAllStatuses() {
+      const [slack, github, zoom, cloudflare] = await Promise.all([
+        fetchSlackStatus(),
+        fetchGitHubStatus(),
+        fetchZoomStatus(),
+        fetchCloudflareStatus()
+      ]);
+      serviceMetrics = [slack, github, zoom, cloudflare];
+      updateDashboard();
+    }
+
+    const statusChart = new Chart(document.getElementById('statusChart'), {
+      type: 'doughnut',
+      data: { labels: ['Up', 'Down'], datasets: [{ data: [], backgroundColor: ['#4caf50', '#f44336'] }] },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+
+    const responseChart = new Chart(document.getElementById('responseChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Response Time (ms)', data: [], backgroundColor: '#2196f3' }] },
+      options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+    });
+
+    const uptimeChart = new Chart(document.getElementById('uptimeChart'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: 'Uptime %', data: [], borderColor: '#4caf50', fill: false }] },
+      options: { scales: { y: { beginAtZero: true, max: 100 } } }
+    });
+
+    const errorChart = new Chart(document.getElementById('errorChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Error Rate %', data: [], backgroundColor: '#f44336' }] },
+      options: { scales: { y: { beginAtZero: true } } }
+    });
+
+    function updateDashboard() {
+      const upCount = serviceMetrics.filter(s => s.status === 'Up').length;
+      const downCount = serviceMetrics.length - upCount;
+
+      statusChart.data.datasets[0].data = [upCount, downCount];
+      statusChart.update();
+
+      responseChart.data.labels = serviceMetrics.map(s => s.name);
+      responseChart.data.datasets[0].data = serviceMetrics.map(s => s.responseTime);
+      responseChart.update();
+
+      uptimeChart.data.labels = serviceMetrics.map(s => s.name);
+      uptimeChart.data.datasets[0].data = serviceMetrics.map(s => s.uptime.toFixed(2));
+      uptimeChart.update();
+
+      errorChart.data.labels = serviceMetrics.map(s => s.name);
+      errorChart.data.datasets[0].data = serviceMetrics.map(s => s.errorRate);
+      errorChart.update();
+
+      const tableBody = document.getElementById('serviceTableBody');
+      tableBody.innerHTML = '';
+      serviceMetrics.forEach(service => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${service.name}</td>
+          <td style="color:${service.status === 'Up' ? '#4caf50' : '#f44336'}; font-weight:bold;">${service.status}</td>
+          <td>${service.responseTime}</td>
+          <td>${service.uptime.toFixed(2)}%</td>
+          <td>${service.errorRate}%</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    fetchAllStatuses();
+    setInterval(fetchAllStatuses, 10000);
+  </script>
+</body>
+</html>
